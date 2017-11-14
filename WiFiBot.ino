@@ -14,22 +14,17 @@
 #define BIN1 15
 #define BIN2 2
 
-
 #define FORWARD  1
 #define BACKWARD  0
-#define RIGHT  1
-#define LEFT 0
+#define RIGHT  'R'
+#define LEFT 'L'
+#define STOP 'S'
+#define UTUNR 'U'
 
 //////////////////////
 // WiFi Definitions //
 //////////////////////
 const char WiFiSSID[] = "wahoo";
-
-int rledState = LOW;
-unsigned long rpreviousMillis = 0;
-int lledState = LOW;
-unsigned long lpreviousMillis = 0;
-const long interval = 1000;
 
 int pwm = 500;
 int sumError = 0;
@@ -41,6 +36,8 @@ RCSensor right(RIGHTSENSOR);
 RCSensor left(LEFTSENSOR);
 int rightMax = 0, leftMax = 0;
 
+String directions = "RLRS";
+int command = 0;
 
 MyTimer turningTimer;
 MyTimer printTimer;
@@ -91,14 +88,10 @@ void loop(){
                 Serial.print("  ");
                 Serial.print(right.read());
                 Serial.print("  ");
-     
+    
                 Serial.println(pwm);
                 printTimer.startTimer(1000);
         }
-
-
-
-
         if (turned && !turningTimer.checkExpired())
         {
 
@@ -107,10 +100,15 @@ void loop(){
 
         if (right.read() > rightMax - 550 && left.read() > leftMax - 550)
         {
+                turnDirection = directions.charAt(command);
+                command++;
+                
                 if (turnDirection == RIGHT)
                         turnRight();
                 else if (turnDirection == LEFT)
                         turnLeft();
+                else if(turnDirection == STOP)
+                        updateDirections();
                 turned = true;
                 turningTimer.startTimer(1000);
                 Serial.println("INTERSECTION");
@@ -220,5 +218,12 @@ void calibrate()
         }
         Serial.println(leftMax);
         Serial.println(rightMax);
+}
+
+void updateDirections()
+{
+  directions = "RLRS";
+  command = 0;
+
 }
 
