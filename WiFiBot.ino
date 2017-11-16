@@ -1,6 +1,7 @@
 #include <MyTimer.h>
 #include <RCSensor.h>
 #include <ESP8266WiFi.h>
+#include <ESP8266HTTPClient.h>
 
 #define RIGHTSENSOR 16
 #define LEFTSENSOR 14
@@ -19,7 +20,7 @@
 #define RIGHT  'R'
 #define LEFT 'L'
 #define STOP 'S'
-#define UTUNR 'U'
+#define UTURN 'U'
 
 //////////////////////
 // WiFi Definitions //
@@ -36,13 +37,10 @@ RCSensor right(RIGHTSENSOR);
 RCSensor left(LEFTSENSOR);
 int rightMax = 0, leftMax = 0;
 
-String directions = "RLRS";
+String directions = "";
 int command = 0;
 
-MyTimer turningTimer;
 MyTimer printTimer;
-
-bool turned = false;
 
 void setup(){
         Serial.begin(115200);
@@ -58,6 +56,7 @@ void setup(){
         printTimer.startTimer(1000);
 
         calibrate();
+        updateDirections();
 }
 
 void connectWiFi()
@@ -92,14 +91,9 @@ void loop(){
                 Serial.println(pwm);
                 printTimer.startTimer(1000);
         }
-        if (turned && !turningTimer.checkExpired())
-        {
-
-                turned = false;
-        }
-
         if (right.read() > rightMax - 550 && left.read() > leftMax - 550)
         {
+                Serial.println("INTERSECTION");
                 turnDirection = directions.charAt(command);
                 command++;
                 
@@ -109,9 +103,6 @@ void loop(){
                         turnLeft();
                 else if(turnDirection == STOP)
                         updateDirections();
-                turned = true;
-                turningTimer.startTimer(1000);
-                Serial.println("INTERSECTION");
         }
 
         if (left.read() > leftMax - 350) //Adjust Left
@@ -139,16 +130,16 @@ void turnLeft()
         Serial.println("Turning Left");
         rightMotor(FORWARD, pwm);
         leftMotor(BACKWARD, .15 * pwm);
-        while(right.read() > rightMax - 750)
+        while(right.read() > rightMax - 950)
         {              yield();
 }
-        while(right.read() < rightMax - 750)
+        while(right.read() < rightMax - 950)
         {              yield();
 }
-        while(right.read() > rightMax - 750)
+        while(right.read() > rightMax - 950)
         {              yield();
 }
-        while(right.read() < rightMax - 500)
+        while(right.read() < rightMax - 700)
         {              yield();
 }
 }
@@ -157,49 +148,47 @@ void turnRight()
         Serial.println("Turning Right");
         rightMotor(BACKWARD, .15 * pwm);
         leftMotor(FORWARD, pwm);
-        while(left.read() > leftMax - 750)
+        while(left.read() > leftMax - 950)
         {              yield();
 }
-        while(left.read() < leftMax - 750)
+        while(left.read() < leftMax - 950)
         {              yield();
 }
-        while(left.read() > leftMax - 750)
+        while(left.read() > leftMax - 950)
         {              yield();
 }
-        while(left.read() < leftMax - 500)
+        while(left.read() < leftMax - 700)
         {              yield();
 }
 }
-void rightMotor(int direction, int speed)
+void rightMotor(int rotate, int rate)
 {
-
-        if(direction == 1)
+        if(rotate == 1)
         {
                 digitalWrite(AIN1, HIGH);
                 digitalWrite(AIN2, LOW);
-                analogWrite(PWMA, speed);
+                analogWrite(PWMA, rate);
         }
         else
         {
                 digitalWrite(AIN1, LOW);
                 digitalWrite(AIN2, HIGH);
-                analogWrite(PWMA, speed);
+                analogWrite(PWMA, rate);
         }
 }
-void leftMotor(int direction, int speed)
+void leftMotor(int rotate, int rate)
 {
-
-        if(direction == 1)
+        if(rotate == 1)
         {
                 digitalWrite(BIN1, HIGH);
                 digitalWrite(BIN2, LOW);
-                analogWrite(PWMB, speed);
+                analogWrite(PWMB, rate);
         }
         else
         {
                 digitalWrite(BIN1, LOW);
                 digitalWrite(BIN2, HIGH);
-                analogWrite(PWMB, speed);
+                analogWrite(PWMB, rate);
         }
 }
 void calibrate()
@@ -222,8 +211,33 @@ void calibrate()
 
 void updateDirections()
 {
-  directions = "RLRS";
-  command = 0;
+        HTTPClient http;
 
+        Serial.print("[HTTP] begin...\n");
+        // configure traged server and url
+        http.begin("http://216.197.78.205/id?id=1"); //HTTP
+
+        Serial.print("[HTTP] GET...\n");
+        // start connection and send HTTP header
+        int httpCode = http.GET();
+
+        // httpCode will be negative on error
+        if(httpCode > 0) {
+            // HTTP header has been send and Server response header has been handled
+            Serial.printf("[HTTP] GET... code: %d\n", httpCode);
+
+            // file found at server
+            if(httpCode == HTTP_CODE_OK) {
+                directions = http.getString();
+            }
+        } else {
+            Serial.printf("[HTTP] GET... failed, error: %s\n", http.errorToString(httpCode).c_str());
+        }
+
+        http.end();
+    
+  directions = directions.substring(directions.indexOf(':') + 1);
+  command = 0;
+  Serial.println(directions);
 }
 
