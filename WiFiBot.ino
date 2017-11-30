@@ -21,6 +21,7 @@
 #define LEFT 'L'
 #define STOP 'S'
 #define UTURN 'U'
+#define STRAIGHT  'F'
 
 //////////////////////
 // WiFi Definitions //
@@ -41,6 +42,7 @@ String directions = "";
 int command = 0;
 
 MyTimer printTimer;
+MyTimer forwardTimer;
 
 void setup(){
         Serial.begin(115200);
@@ -91,26 +93,38 @@ void loop(){
                 Serial.println(pwm);
                 printTimer.startTimer(1000);
         }
-        if (right.read() > rightMax - 550 && left.read() > leftMax - 550)
+        if (right.read() > rightMax - 300 && left.read() > leftMax - 300)
         {
                 Serial.println("INTERSECTION");
                 turnDirection = directions.charAt(command);
-                command++;
+                Serial.println(directions);
                 
                 if (turnDirection == RIGHT)
                         turnRight();
                 else if (turnDirection == LEFT)
                         turnLeft();
                 else if(turnDirection == STOP)
-                        updateDirections();
+                {
+                      halt();
+                      updateDirections();
+                        
+                }
+                else if(turnDirection == STRAIGHT){
+                      Serial.println("Forward");
+                      leftMotor(FORWARD, pwm);
+                      rightMotor(FORWARD, pwm);
+                      delay(400);
+                }
+                                command++;
+
         }
 
-        if (left.read() > leftMax - 350) //Adjust Left
+        if (left.read() > leftMax - 300) //Adjust Left
         {
                 rightMotor(FORWARD, pwm);
                 leftMotor(FORWARD, pwm - .90*pwm);
         }
-        else if (right.read() > rightMax - 350) //Adjust Right
+        else if (right.read() > rightMax - 300) //Adjust Right
         {
                 rightMotor(FORWARD, pwm - .90*pwm);
                 leftMotor(FORWARD, pwm);
@@ -160,6 +174,15 @@ void turnRight()
         while(left.read() < leftMax - 700)
         {              yield();
 }
+}
+void halt()
+{
+                digitalWrite(AIN1, LOW);
+                digitalWrite(AIN2, LOW);
+                analogWrite(PWMA, 0);
+                digitalWrite(BIN1, LOW);
+                digitalWrite(BIN2, LOW);
+                analogWrite(PWMB, 0);
 }
 void rightMotor(int rotate, int rate)
 {
@@ -211,12 +234,16 @@ void calibrate()
 
 void updateDirections()
 {
+  
         HTTPClient http;
 
         Serial.print("[HTTP] begin...\n");
         // configure traged server and url
         http.begin("http://216.197.78.205/id?id=1"); //HTTP
-
+        String previousDirections = directions;
+        while(previousDirections == directions)
+        {
+          yield();
         Serial.print("[HTTP] GET...\n");
         // start connection and send HTTP header
         int httpCode = http.GET();
@@ -229,15 +256,36 @@ void updateDirections()
             // file found at server
             if(httpCode == HTTP_CODE_OK) {
                 directions = http.getString();
+                directions = directions.substring(directions.indexOf(':') + 1);
+
             }
         } else {
             Serial.printf("[HTTP] GET... failed, error: %s\n", http.errorToString(httpCode).c_str());
         }
-
+        }
         http.end();
     
-  directions = directions.substring(directions.indexOf(':') + 1);
   command = 0;
+  turnDirection = directions.charAt(command);
+                
+                if (turnDirection == RIGHT)
+                        turnRight();
+                else if (turnDirection == LEFT)
+                        turnLeft();
+                else if (turnDirection == UTURN){
+                      leftMotor(BACKWARD, pwm);
+                      rightMotor(FORWARD, pwm);
+                      delay(1600);
+                }
+                else if(turnDirection == STRAIGHT){
+                      Serial.println("Forward");
+                      leftMotor(FORWARD, pwm);
+                      rightMotor(FORWARD, pwm);
+                      delay(400);
+                }
+                                command++;
+
+                
   Serial.println(directions);
 }
 
